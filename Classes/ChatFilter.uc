@@ -1,13 +1,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 // filename:    ChatFilter.uc
-// version:     154
+// version:     155
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     main filter class
 ///////////////////////////////////////////////////////////////////////////////
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 154;
+const VERSION = 155;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
@@ -91,7 +91,7 @@ function int findChatRecord(Actor Sender, optional bool bCreate)
     if (bFriendlyMessage || bCheckNicknames)
     {
       if (ChatRecords[ChatRecords.Length-1].Dispatcher == none)
-        ChatRecords[ChatRecords.Length-1].Dispatcher = spawn(class'ChatFilterMsg154.MsgDispatcher', Sender);  
+        ChatRecords[ChatRecords.Length-1].Dispatcher = spawn(class'ChatFilterMsg155.MsgDispatcher', Sender);  
     }
     return ChatRecords.Length-1;
   }
@@ -389,9 +389,9 @@ event PreBeginPlay()
     Self.Destroy();
     return;
   }
-  log("[~] Loading Chat Filter version"@VERSION);
-  log("[~] Michiel 'El Muerte' Hendriks - elmuerte@drunksnipers.com");
-  log("[~] The Drunk Snipers - http://www.drunksnipers.com");
+  log("[~] Loading Chat Filter version"@VERSION, 'ChatFilter');
+  log("[~] Michiel 'El Muerte' Hendriks - elmuerte@drunksnipers.com", 'ChatFilter');
+  log("[~] The Drunk Snipers - http://www.drunksnipers.com", 'ChatFilter');
   if (bLogChat)
   {
     logfile = spawn(class 'FileLog', Level);
@@ -411,12 +411,12 @@ event PreBeginPlay()
   }
   if (KillAction == CFA_Warn)
   {
-    log("[~] Launching warning mutator");
+    log("[~] Launching warning mutator", 'ChatFilter');
     Level.Game.AddMutator("ChatFilter.WarningMut", true);
   }
   if (bUseReplacementTable)
   {
-    log("[~] Converting BadWords to ReplacementTable");
+    log("[~] Converting BadWords to ReplacementTable", 'ChatFilter');
     ReplacementTable.Length = BadWords.Length;
     for (i = 0; i < BadWords.Length; i++)
     {
@@ -627,7 +627,12 @@ function string LogFilename()
   ReplaceText(result, "%I", Right("00"$string(Level.Minute), 2));
   ReplaceText(result, "%W", Right("0"$string(Level.DayOfWeek), 1));
   ReplaceText(result, "%S", Right("00"$string(Level.Second), 2));
-  return sLogDir$result;
+  if (int(level.EngineVersion) > 2222)
+  {
+    if (sLogDir != "") Log("[E] sLogDir is no longer supported in UT2003 version 2222 and up", 'ChatFilter');
+    return result;
+  }
+  else return sLogDir$result;
 }
 
 defaultproperties
