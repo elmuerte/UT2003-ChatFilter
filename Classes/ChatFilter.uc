@@ -1,13 +1,14 @@
 ///////////////////////////////////////////////////////////////////////////////
 // filename:    ChatFilter.uc
-// version:     155
+// version:     157
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     main filter class
+// $Id: ChatFilter.uc,v 1.14 2003/09/12 19:41:16 elmuerte Exp $
 ///////////////////////////////////////////////////////////////////////////////
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 156;
+const VERSION = 157;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
@@ -31,6 +32,7 @@ var config bool bUseReplacementTable; // BadWords=> replace;with
 var config bool bCheckNicknames;
 var config BNA BadnickAction;
 var config array<string> UnallowedNicks;
+var config bool bWildCardNicks;
 // Judgement actions
 var config int iKillScore;
 var config ChatFilterAction KillAction;
@@ -319,11 +321,21 @@ function CheckNickname(PlayerController PC)
   {
     for (i=0; i<UnallowedNicks.Length; i++)
     {
-      if (Caps(PC.PlayerReplicationInfo.PlayerName) == Caps(UnallowedNicks[i]))
-      {
-        badName = true;
-        break;
-      }
+			if (bWildCardNicks && (InStr(UnallowedNicks[i], "*") > -1 || InStr(UnallowedNicks[i], "?") > -1))
+			{
+				if (class'wString'.static.MaskedCompare(PC.PlayerReplicationInfo.PlayerName, UnallowedNicks[i]))
+				{
+					badName = true;
+				  break;
+				}
+			}
+			else {
+	      if (Caps(PC.PlayerReplicationInfo.PlayerName) == Caps(UnallowedNicks[i]))
+		    {
+			    badName = true;
+				  break;
+	      }
+			}
     }
   }
   if (foulName || badName)
@@ -440,30 +452,32 @@ event PreBeginPlay()
 
 event Timer()
 {
-  local int i;
-  local PlayerController PC;
+  local int i;  
   // reset count
   for (i = 0; i < ChatRecords.Length; i++)
   {
     ChatRecords[i].msgCount = 0;
-  }
-  // check nickname
-  if (bCheckNicknames)
-  {
-    ForEach DynamicActors(class'PlayerController', PC)
-    {
-      if (!PC.PlayerReplicationInfo.bBot && (MessagingSpectator(PC) == none)) CheckNickname(PC);
-    }
-  }
+  }  
 }
 
 event Tick(float delta)
 {
+	local PlayerController PC;
   if ((Level.NextURL != "") && (logfile != none))
   {
     logfile.Logf("--- Log closed on "$Level.Year$"/"$Level.Month$"/"$Level.Day@Level.Hour$":"$Level.Minute$":"$Level.Second);
     logfile.Destroy();
     logfile = none;
+  }
+	// check nickname
+  if (bCheckNicknames)
+  {
+    ForEach DynamicActors(class'PlayerController', PC)
+    {
+			// nick change
+			if (PC.PlayerReplicationInfo.PlayerName != PC.PlayerReplicationInfo.OldName)
+	      if (!PC.PlayerReplicationInfo.bBot && (MessagingSpectator(PC) == none)) CheckNickname(PC);
+    }
   }
 }
 
@@ -592,7 +606,8 @@ static function FillPlayInfo(PlayInfo PI)
   
   PI.AddSetting("Chat Filter", "bCheckNicknames", "Check nicknames", 10, 10, "check", "");
   PI.AddSetting("Chat Filter", "BadnickAction", "Bad nick action", 10, 10, "Select", "BNA_Kick;Kick the player;BNA_Request;Request a new nickname;BNA_Ban;Ban the player;BNA_SessionBan;Ban this player for this session only");
-  
+	PI.AddSetting("Chat Filter", "bWildCardNicks", "Bad nicks contain wildcards", 10, 10, "check", "");
+
   PI.AddSetting("Chat Filter", "sWarningNotification", "Warning notification", 10, 11, "Text");
   PI.AddSetting("Chat Filter", "sWarningBroadcast", "Warning broadcast", 10, 12, "Text");
   PI.AddSetting("Chat Filter", "WarningAction", "Warning action", 10, 13, "Select", "CFA_Nothing;Nothing;CFA_Kick;Kick player;CFA_Ban;Ban player;CFA_SessionBan;Ban player this session;CFA_Defrag;Remove one point;CFA_Mute;Mute player for this game");
@@ -657,6 +672,7 @@ defaultproperties
   KillAction=CFA_Nothing
   bCheckNicknames=false  
   BadnickAction=BNA_Kick
+	bWildCardNicks=true
   sWarningNotification="ChatFilter: Please clean up your act"
   sWarningBroadcast="%s is chatting abusive, type 'mutate cf judge %i` to judge the player"
   WarningAction=CFA_Kick
