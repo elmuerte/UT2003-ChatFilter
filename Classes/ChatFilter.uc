@@ -1,13 +1,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 // filename:    ChatFilter.uc
-// version:     152
+// version:     153
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     main filter class
 ///////////////////////////////////////////////////////////////////////////////
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 152;
+const VERSION = 153;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
@@ -26,6 +26,7 @@ var config int iScoreSpam;
 var config array<string> BadWords;
 var config string CencorWord;
 var config int iScoreSwear;
+var config bool bUseReplacementTable; // BadWords=> replace;with
 // Nickname check
 var config bool bCheckNicknames;
 var config BNA BadnickAction;
@@ -53,6 +54,11 @@ var config ChatDirectionSetting ChatDirection;
 var config bool bAdminChatOverride;
 
 var BroadcastHandler oldHandler;
+struct ReplacementEntry
+{
+  var string from,to;
+};
+var array<ReplacementEntry> ReplacementTable;
 
 struct ChatRecord
 {
@@ -99,6 +105,7 @@ function string filterString(coerce string Msg, int cr)
   local int i,j,k;
 
   if (cr == -1) return Msg;
+  if (bUseReplacementTable) return filterStringTable(Msg, cr);
   if (split(msg," ", parts) == 0) return "";
   for (i=0; i<BadWords.Length; i++)
   {
@@ -110,6 +117,35 @@ function string filterString(coerce string Msg, int cr)
         parts[j] = Left(parts[j], k)$CencorWord$Mid(parts[j], k+Len(BadWords[i]));
         ChatRecords[cr].score += iScoreSwear;
         k = InStr(Caps(parts[j]), Caps(BadWords[i]));
+      }
+    }
+  }
+  msg = parts[0];
+  for (i = 1; i < parts.length; i++)
+  {
+    msg = msg@parts[i];
+  }
+  return Msg;
+}
+
+// Filter bad words out a string, using replacement table
+function string filterStringTable(coerce string Msg, int cr)
+{
+  local array<string> parts;
+  local int i,j,k;
+
+  if (cr == -1) return Msg;
+  if (split(msg," ", parts) == 0) return "";
+  for (i=0; i<ReplacementTable.Length; i++)
+  {
+    for (j = 0; j < parts.length; j++)
+    {
+      k = InStr(Caps(parts[j]), Caps(ReplacementTable[i].from));
+      while (k > -1) 
+      { 
+        parts[j] = Left(parts[j], k)$ReplacementTable[i].to$Mid(parts[j], k+Len(ReplacementTable[i].from));
+        ChatRecords[cr].score += iScoreSwear;
+        k = InStr(Caps(parts[j]), Caps(ReplacementTable[i].from));
       }
     }
   }
@@ -258,12 +294,25 @@ function CheckNickname(PlayerController PC)
 
   foulName = false;
   badName = false;
-  for (i=0; i<BadWords.Length; i++)
+  if (bUseReplacementTable)
   {
-    if (InStr(Caps(PC.PlayerReplicationInfo.PlayerName), Caps(BadWords[i])) > -1)
+    for (i=0; i<ReplacementTable.Length; i++)
     {
-      foulName = true;
-      break;
+      if (InStr(Caps(PC.PlayerReplicationInfo.PlayerName), Caps(ReplacementTable[i].from)) > -1)
+      {
+        foulName = true;
+        break;
+      }
+    }
+  }
+  else {
+    for (i=0; i<BadWords.Length; i++)
+    {
+      if (InStr(Caps(PC.PlayerReplicationInfo.PlayerName), Caps(BadWords[i])) > -1)
+      {
+        foulName = true;
+        break;
+      }
     }
   }
   if (!foulName)
@@ -313,10 +362,28 @@ function bool mayChat(PlayerController Sender, PlayerController Receiver)
   return true;
 }
 
+function GameInformation()
+{
+	local string line, tmp;
+  local Mutator M;
+  line = "===";
+  line = line$chr(9)$Level.Game.Class; // gametype
+  line = line$chr(9)$Left(string(Level), InStr(string(Level), ".")); // map
+  for (M = Level.Game.BaseMutator.NextMutator; M != None; M = M.NextMutator) 
+  {
+    if (tmp != "") tmp = tmp$",";
+    tmp = tmp$(M.GetHumanReadableName());
+  }
+  line = line$chr(9)$tmp; // mutators
+
+  logfile.Logf(line);
+}
+
 // default methods //
 
 event PreBeginPlay()
 {
+  local int i,j;
   if (!bEnabled)
   {
     Self.Destroy();
@@ -331,6 +398,7 @@ event PreBeginPlay()
     logname = LogFilename();
     logfile.OpenLog(logname);
     logfile.Logf("--- Log started on "$Level.Year$"/"$Level.Month$"/"$Level.Day@Level.Hour$":"$Level.Minute$":"$Level.Second);
+    GameInformation();
   }
   if (!Level.Game.BroadcastHandler.IsA('ChatFilter'))
   {
@@ -345,6 +413,20 @@ event PreBeginPlay()
   {
     log("[~] Launching warning mutator");
     Level.Game.AddMutator("ChatFilter.WarningMut", true);
+  }
+  if (bUseReplacementTable)
+  {
+    log("[~] Converting BadWords to ReplacementTable");
+    ReplacementTable.Length = BadWords.Length;
+    for (i = 0; i < BadWords.Length; i++)
+    {
+      j = InStr(BadWords[i], ";");
+      if (j < 0) j = Len(BadWords[i]);
+      ReplacementTable[i].from = Left(BadWords[i], j);
+      ReplacementTable[i].to = Mid(BadWords[i], j+1);      
+      if (ReplacementTable[i].to == "") ReplacementTable[i].to = CencorWord;
+      log("[~]"@ReplacementTable[i].from@"=>"@ReplacementTable[i].to);
+    }
   }
   SetTimer(fTimeFrame, true);
   enable('Tick');
@@ -557,6 +639,7 @@ defaultproperties
   iMaxRepeat=1
   CencorWord="*****"
   iScoreSpam=1
+  bUseReplacementTable=false
   iScoreSwear=1
   iKillScore=10
   KillAction=CFA_Nothing
