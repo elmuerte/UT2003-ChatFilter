@@ -1,18 +1,19 @@
 ///////////////////////////////////////////////////////////////////////////////
 // filename:    ChatFilter.uc
-// version:     151
+// version:     152
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     main filter class
 ///////////////////////////////////////////////////////////////////////////////
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 151;
+const VERSION = 152;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
 enum ChatFilterAction {CFA_Nothing, CFA_Kick, CFA_Ban, CFA_SessionBan, CFA_Defrag, CFA_Warn, CFA_Mute};
 enum BNA {BNA_Kick, BNA_Request};
+enum ChatDirectionSetting {CD_All, CD_PrivatePlayer, CD_PrivateSpecator};
 
 // Misc
 var config bool bFriendlyMessage;
@@ -47,9 +48,11 @@ var config string sLogDir;
 var config string sFileFormat;
 var string logname;
 var FileLog logfile;
+// message target filtering
+var config ChatDirectionSetting ChatDirection;
+var config bool bAdminChatOverride;
 
 var BroadcastHandler oldHandler;
-var MsgDispatcher Dispatcher;
 
 struct ChatRecord
 {
@@ -61,15 +64,10 @@ struct ChatRecord
   var int warnings;
   var bool bUserRequest;
   var bool bMuted;
+  var MsgDispatcher Dispatcher;
+  var string lastName;
 };
 var array<ChatRecord> ChatRecords;
-
-struct BadNickRecord
-{
-  var PlayerController User;
-  var string BadNick;
-};
-var array<BadNickRecord> BadNickRecords;
 
 // Find a player record and create a new one when needed
 function int findChatRecord(Actor Sender, optional bool bCreate)
@@ -84,6 +82,11 @@ function int findChatRecord(Actor Sender, optional bool bCreate)
   {
     ChatRecords.Length = ChatRecords.Length+1;
     ChatRecords[ChatRecords.Length-1].Sender = PlayerController(Sender);
+    if (bFriendlyMessage || bCheckNicknames)
+    {
+      if (ChatRecords[ChatRecords.Length-1].Dispatcher == none)
+        ChatRecords[ChatRecords.Length-1].Dispatcher = spawn(class'ChatFilterMsg152.MsgDispatcher', Sender);  
+    }
     return ChatRecords.Length-1;
   }
   return -1;
@@ -137,15 +140,15 @@ function judge(PlayerController Sender, int cr)
       {
         case CFA_Nothing: return;
         case CFA_Kick:  judgeLog("Kicking player"@Sender.PlayerReplicationInfo.PlayerName);
-                        if (bFriendlyMessage) Dispatcher.Dispatch(Sender, 1);
+                        if (bFriendlyMessage) ChatRecords[cr].Dispatcher.Dispatch(Sender, 1);
                         Level.Game.AccessControl.KickPlayer(Sender); 
                         return;
         case CFA_Ban: judgeLog("Banning player"@Sender.PlayerReplicationInfo.PlayerName);
-                      if (bFriendlyMessage) Dispatcher.Dispatch(Sender, 2);
+                      if (bFriendlyMessage) ChatRecords[cr].Dispatcher.Dispatch(Sender, 2);
                       Level.Game.AccessControl.BanPlayer(Sender, false); 
                       return;
         case CFA_SessionBan:  judgeLog("Session banning player"@Sender.PlayerReplicationInfo.PlayerName);
-                              if (bFriendlyMessage) Dispatcher.Dispatch(Sender, 3);
+                              if (bFriendlyMessage) ChatRecords[cr].Dispatcher.Dispatch(Sender, 3);
                               Level.Game.AccessControl.BanPlayer(Sender, true); 
                               return;
         case CFA_Defrag:  judgeLog("Defragging player"@Sender.PlayerReplicationInfo.PlayerName);
@@ -160,7 +163,7 @@ function judge(PlayerController Sender, int cr)
                         Sender.SetProgressTime(6);
                     		Sender.SetProgressMessage(0, sMuteMessage, class'Canvas'.Static.MakeColor(255,0,0));
                         ChatRecords[cr].bMuted = true;
-                        //if (bShowMuted) Dispatcher.MuteHud(Sender);
+                        if (bShowMuted) ChatRecords[cr].Dispatcher.MutedHud(Sender);
                         return;
       }
     }
@@ -181,24 +184,24 @@ function judgeWarning(PlayerController Sender, int cr)
         case CFA_Kick:  judgeLog("Kicking player"@Sender.PlayerReplicationInfo.PlayerName@"iMaxWarning exceeded:"@(ChatRecords[cr].warnings > iMaxWarnings)@"Requested:"@ChatRecords[cr].bUserRequest);
                         if (bFriendlyMessage) 
                         { 
-                          if (ChatRecords[cr].bUserRequest) Dispatcher.Dispatch(Sender, 4);
-                          else Dispatcher.Dispatch(Sender, 1);
+                          if (ChatRecords[cr].bUserRequest) ChatRecords[cr].Dispatcher.Dispatch(Sender, 4);
+                          else ChatRecords[cr].Dispatcher.Dispatch(Sender, 1);
                         }
                         Level.Game.AccessControl.KickPlayer(Sender); 
                         break;
         case CFA_Ban: judgeLog("Banning player"@Sender.PlayerReplicationInfo.PlayerName@"iMaxWarning exceeded:"@(ChatRecords[cr].warnings > iMaxWarnings)@"Requested:"@ChatRecords[cr].bUserRequest);
                       if (bFriendlyMessage) 
                       { 
-                        if (ChatRecords[cr].bUserRequest) Dispatcher.Dispatch(Sender, 5);
-                        else Dispatcher.Dispatch(Sender, 2);
+                        if (ChatRecords[cr].bUserRequest) ChatRecords[cr].Dispatcher.Dispatch(Sender, 5);
+                        else ChatRecords[cr].Dispatcher.Dispatch(Sender, 2);
                       }
                       Level.Game.AccessControl.BanPlayer(Sender, false); 
                       break;
         case CFA_SessionBan:  judgeLog("Session banning player"@Sender.PlayerReplicationInfo.PlayerName@"iMaxWarning exceeded:"@(ChatRecords[cr].warnings > iMaxWarnings)@"Requested:"@ChatRecords[cr].bUserRequest);
                               if (bFriendlyMessage) 
                               { 
-                                if (ChatRecords[cr].bUserRequest) Dispatcher.Dispatch(Sender, 6);
-                                else Dispatcher.Dispatch(Sender, 3);
+                                if (ChatRecords[cr].bUserRequest) ChatRecords[cr].Dispatcher.Dispatch(Sender, 6);
+                                else ChatRecords[cr].Dispatcher.Dispatch(Sender, 3);
                               }
                               Level.Game.AccessControl.BanPlayer(Sender, true); 
                               break;
@@ -250,63 +253,63 @@ function WriteLog(PlayerController Sender, coerce string msg, coerce string tag)
 // Check for foul nickname
 function CheckNickname(PlayerController PC)
 {
-  local bool nameOk;
+  local bool foulName, badName;
   local int i;
-  nameOk = true;
+
+  foulName = false;
+  badName = false;
   for (i=0; i<BadWords.Length; i++)
   {
     if (InStr(Caps(PC.PlayerReplicationInfo.PlayerName), Caps(BadWords[i])) > -1)
     {
-      nameOk = false;
+      foulName = true;
       break;
     }
   }
-  if (nameOk)
+  if (!foulName)
   {
     for (i=0; i<UnallowedNicks.Length; i++)
     {
       if (Caps(PC.PlayerReplicationInfo.PlayerName) == Caps(UnallowedNicks[i]))
       {
-        nameOk = false;
+        badName = true;
         break;
       }
     }
   }
-  if (!nameOk)
+  if (foulName || badName)
   {    
-    if (BadnickAction == BNA_Kick)
-    {    
-      judgeLog("Bad nickname"@PC.PlayerReplicationInfo.PlayerName);
-      Dispatcher.Dispatch(PC, 0);
-      Level.Game.AccessControl.KickPlayer(PC); 
-    }
-    else if (BadnickAction == BNA_Request)
+    i = findChatRecord(PC, true);
+    if (i > -1)
     {
-      for (i = 0; i < BadNickRecords.Length; i++)
+      if (ChatRecords[i].LastName == Caps(PC.PlayerReplicationInfo.PlayerName)) return;
+      judgeLog("Bad nickname"@PC.PlayerReplicationInfo.PlayerName);
+      if (BadnickAction == BNA_Kick)
+      {            
+        if (foulName) ChatRecords[i].Dispatcher.Dispatch(PC, 0);
+        else if (badName) ChatRecords[i].Dispatcher.Dispatch(PC, 7);
+        Level.Game.AccessControl.KickPlayer(PC); 
+      }
+      else if (BadnickAction == BNA_Request)
       {
-        if (BadNickRecords[i].User == PC) 
-        {          
-          if (BadNickRecords[i].BadNick == PC.PlayerReplicationInfo.PlayerName) return; // no new name
-          else break;
-        }
+        if (foulName) ChatRecords[i].Dispatcher.ChangeNamerequest(PC, 0);
+        else if (badName) ChatRecords[i].Dispatcher.ChangeNamerequest(PC, 7);
       }
-      judgeLog("Bad nickname"@PC.PlayerReplicationInfo.PlayerName);
-      BadNickRecords.Length = i+1;
-      BadNickRecords[i].User = PC;
-      BadNickRecords[i].BadNick = PC.PlayerReplicationInfo.PlayerName;
-      Dispatcher.ChangeNamerequest(PC);
+      ChatRecords[i].LastName = Caps(PC.PlayerReplicationInfo.PlayerName);
     }
   }
-  else {
-    for (i = 0; i < BadNickRecords.Length; i++)
-    {
-      if (BadNickRecords[i].User == PC) 
-      {          
-        BadNickRecords.Remove(i, 1); // remove previous bad name
-        return;
-      }
-    }
+}
+
+function bool mayChat(PlayerController Sender, PlayerController Receiver)
+{
+  if (ChatDirection == CD_All) return true;
+  if (Sender.PlayerReplicationInfo.bAdmin && bAdminChatOverride) return true;
+  if (Sender.PlayerReplicationInfo.bIsSpectator)
+  {
+    if (ChatDirection == CD_PrivateSpecator) return Receiver.PlayerReplicationInfo.bIsSpectator;
   }
+  if (ChatDirection == CD_PrivatePlayer) return Receiver.PlayerReplicationInfo.bIsSpectator;
+  return true;
 }
 
 // default methods //
@@ -321,7 +324,6 @@ event PreBeginPlay()
   log("[~] Loading Chat Filter version"@VERSION);
   log("[~] Michiel 'El Muerte' Hendriks - elmuerte@drunksnipers.com");
   log("[~] The Drunk Snipers - http://www.drunksnipers.com");
-  if (bFriendlyMessage || bCheckNicknames) Dispatcher = spawn(class'ChatFilterMsg151.MsgDispatcher');
   if (bLogChat)
   {
     logfile = spawn(class 'FileLog', Level);
@@ -497,19 +499,21 @@ static function FillPlayInfo(PlayInfo PI)
   //PI.AddSetting("Chat Filter", "BadWords", "Bad words", 10, 7, "Textarea", "");
   
   PI.AddSetting("Chat Filter", "iKillScore", "Kill score", 10, 8, "Text", "5");
-  PI.AddSetting("Chat Filter", "KillAction", "Kill actions", 10, 9, "Select", "CFA_Nothing;Nothing;CFA_Warn;Warn player;CFA_Kick;Kick player;CFA_Ban;Ban player;CFA_SessionBan;Ban player this session;CFA_Defrag;Remove one point;CFA_Mute;Mute player for this game");
+  PI.AddSetting("Chat Filter", "KillAction", "Kill action", 10, 9, "Select", "CFA_Nothing;Nothing;CFA_Warn;Warn player;CFA_Kick;Kick player;CFA_Ban;Ban player;CFA_SessionBan;Ban player this session;CFA_Defrag;Remove one point;CFA_Mute;Mute player for this game");
   
   PI.AddSetting("Chat Filter", "bCheckNicknames", "Check nicknames", 10, 10, "check", "");
   PI.AddSetting("Chat Filter", "BadnickAction", "Bad nick action", 10, 10, "Select", "BNA_Kick;Kick the player;BNA_Request;Request a new nickname");
   
   PI.AddSetting("Chat Filter", "sWarningNotification", "Warning notification", 10, 11, "Text");
   PI.AddSetting("Chat Filter", "sWarningBroadcast", "Warning broadcast", 10, 12, "Text");
-  PI.AddSetting("Chat Filter", "WarningAction", "Kill actions", 10, 13, "Select", "CFA_Nothing;Nothing;CFA_Kick;Kick player;CFA_Ban;Ban player;CFA_SessionBan;Ban player this session;CFA_Defrag;Remove one point;CFA_Mute;Mute player for this game");
+  PI.AddSetting("Chat Filter", "WarningAction", "Warning action", 10, 13, "Select", "CFA_Nothing;Nothing;CFA_Kick;Kick player;CFA_Ban;Ban player;CFA_SessionBan;Ban player this session;CFA_Defrag;Remove one point;CFA_Mute;Mute player for this game");
   PI.AddSetting("Chat Filter", "iMaxWarnings", "Max warnings", 10, 14, "Text", "5");
   PI.AddSetting("Chat Filter", "fMinVote", "Min vote percentage", 10, 15, "Text", "5;0:1");
 
   PI.AddSetting("Chat Filter", "sMuteMessage", "Mute message", 10, 16, "Text");
-  //PI.AddSetting("Chat Filter", "bShowMuted", "Show mute", 10, 17, "Text");
+  PI.AddSetting("Chat Filter", "bShowMuted", "Show mute", 10, 17, "Text");
+
+  //CD_All;Public;CD_PrivateSpecator;Spectators are private;CD_PrivatePlayer;Specators and Players are private;
 
   PI.AddSetting("Chat Filter", "bLogChat", "Log chat", 10, 17, "check");
   PI.AddSetting("Chat Filter", "sFileFormat", "Filename format", 10, 18, "Text", "40");
@@ -564,6 +568,8 @@ defaultproperties
   fMinVote=0.5000
   sMuteMessage="ChatFilter: You are muted the rest of the game"
   bShowMuted=false
+  ChatDirection=CD_All
+  bAdminChatOverride=true
   bLogChat=false
   sLogDir=""
   sFileFormat="ChatFilter_%P_%Y_%M_%D_%H_%I_%S"
