@@ -637,6 +637,7 @@ function string LogFilename()
 
 defaultproperties
 {
+  bHidden=true
   bEnabled=true
   bFriendlyMessage=false
   fTimeFrame=1.0000

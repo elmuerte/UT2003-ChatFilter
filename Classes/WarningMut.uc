@@ -82,7 +82,8 @@ function GetServerDetails( out GameInfo.ServerResponseLine ServerState )
 
 defaultproperties
 {
-     FriendlyName="ChatFilter"
-     Description="Clean up server chatting"
-     GroupName="ChatFilter"
+  bHidden=true
+  FriendlyName="ChatFilter"
+  Description="Clean up server chatting"
+  GroupName="ChatFilter"
 }
