@@ -1,13 +1,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 // filename:    ChatFilter.uc
-// version:     153
+// version:     154
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     main filter class
 ///////////////////////////////////////////////////////////////////////////////
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 153;
+const VERSION = 154;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
@@ -91,7 +91,7 @@ function int findChatRecord(Actor Sender, optional bool bCreate)
     if (bFriendlyMessage || bCheckNicknames)
     {
       if (ChatRecords[ChatRecords.Length-1].Dispatcher == none)
-        ChatRecords[ChatRecords.Length-1].Dispatcher = spawn(class'ChatFilterMsg152.MsgDispatcher', Sender);  
+        ChatRecords[ChatRecords.Length-1].Dispatcher = spawn(class'ChatFilterMsg154.MsgDispatcher', Sender);  
     }
     return ChatRecords.Length-1;
   }
