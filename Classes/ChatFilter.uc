@@ -1,20 +1,19 @@
 ///////////////////////////////////////////////////////////////////////////////
 // filename:    ChatFilter.uc
-// version:     157
+// version:     158
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     main filter class
-// $Id: ChatFilter.uc,v 1.14 2003/09/12 19:41:16 elmuerte Exp $
+// $Id: ChatFilter.uc,v 1.15 2003/09/25 09:56:01 elmuerte Exp $
 ///////////////////////////////////////////////////////////////////////////////
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 157;
+const VERSION = 158;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
 enum ChatFilterAction {CFA_Nothing, CFA_Kick, CFA_Ban, CFA_SessionBan, CFA_Defrag, CFA_Warn, CFA_Mute};
 enum BNA {BNA_Kick, BNA_Request, BNA_Ban, BNA_SessionBan};
-enum ChatDirectionSetting {CD_All, CD_PrivatePlayer, CD_PrivateSpecator};
 
 // Misc
 var config bool bFriendlyMessage;
@@ -51,9 +50,14 @@ var config string sLogDir;
 var config string sFileFormat;
 var string logname;
 var FileLog logfile;
+
 // message target filtering -- NOT IMPLEMENTED
-var config ChatDirectionSetting ChatDirection;
-var config bool bAdminChatOverride;
+const CD_P2P = 1; // player -> player
+const CD_S2S = 2; // spectator -> spectator
+const CD_P2S = 4; // player -> spectator
+const CD_S2P = 8; // spectator -> player
+const CD_A2A = 16; // admin -> all
+var config byte ChatDirection;
 
 var BroadcastHandler oldHandler;
 struct ReplacementEntry
@@ -680,7 +684,7 @@ defaultproperties
   fMinVote=0.5000
   sMuteMessage="ChatFilter: You are muted the rest of the game"
   bShowMuted=false
-  ChatDirection=CD_All
+  ChatDirection=255
   bAdminChatOverride=true
   bLogChat=false
   sLogDir=""
