@@ -1,14 +1,14 @@
 ///////////////////////////////////////////////////////////////////////////////
 // filename:    ChatFilter.uc
-// version:     158
+// version:     159
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     main filter class
-// $Id: ChatFilter.uc,v 1.15 2003/09/25 09:56:01 elmuerte Exp $
+// $Id: ChatFilter.uc,v 1.16 2004/01/15 08:59:14 elmuerte Exp $
 ///////////////////////////////////////////////////////////////////////////////
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 158;
+const VERSION = 159;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
@@ -374,6 +374,7 @@ function CheckNickname(PlayerController PC)
 // check the chat direction
 function bool mayChat(PlayerController Sender, PlayerController Receiver)
 {
+	/*
   if (ChatDirection == CD_All) return true;
   if (Sender.PlayerReplicationInfo.bAdmin && bAdminChatOverride) return true;
   if (Sender.PlayerReplicationInfo.bIsSpectator)
@@ -381,6 +382,7 @@ function bool mayChat(PlayerController Sender, PlayerController Receiver)
     if (ChatDirection == CD_PrivateSpecator) return Receiver.PlayerReplicationInfo.bIsSpectator;
   }
   if (ChatDirection == CD_PrivatePlayer) return Receiver.PlayerReplicationInfo.bIsSpectator;
+	*/
   return true;
 }
 
@@ -466,7 +468,7 @@ event Timer()
 
 event Tick(float delta)
 {
-	local PlayerController PC;
+	local Controller C;
   if ((Level.NextURL != "") && (logfile != none))
   {
     logfile.Logf("--- Log closed on "$Level.Year$"/"$Level.Month$"/"$Level.Day@Level.Hour$":"$Level.Minute$":"$Level.Second);
@@ -476,11 +478,12 @@ event Tick(float delta)
 	// check nickname
   if (bCheckNicknames)
   {
-    ForEach DynamicActors(class'PlayerController', PC)
-    {
+		for( C = Level.ControllerList; C != None; C = C.NextController )
+		{
+			if (C.PlayerReplicationInfo == none) continue;
 			// nick change
-			if (PC.PlayerReplicationInfo.PlayerName != PC.PlayerReplicationInfo.OldName)
-	      if (!PC.PlayerReplicationInfo.bBot && (MessagingSpectator(PC) == none)) CheckNickname(PC);
+			if (C.PlayerReplicationInfo.PlayerName != C.PlayerReplicationInfo.OldName)
+	      if (!C.PlayerReplicationInfo.bBot && (MessagingSpectator(C) == none)) CheckNickname(PlayerController(C));
     }
   }
 }
@@ -685,7 +688,6 @@ defaultproperties
   sMuteMessage="ChatFilter: You are muted the rest of the game"
   bShowMuted=false
   ChatDirection=255
-  bAdminChatOverride=true
   bLogChat=false
   sLogDir=""
   sFileFormat="ChatFilter_%P_%Y_%M_%D_%H_%I_%S"
