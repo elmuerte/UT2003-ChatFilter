@@ -7,12 +7,12 @@
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 155;
+const VERSION = 156;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
 enum ChatFilterAction {CFA_Nothing, CFA_Kick, CFA_Ban, CFA_SessionBan, CFA_Defrag, CFA_Warn, CFA_Mute};
-enum BNA {BNA_Kick, BNA_Request};
+enum BNA {BNA_Kick, BNA_Request, BNA_Ban, BNA_SessionBan};
 enum ChatDirectionSetting {CD_All, CD_PrivatePlayer, CD_PrivateSpecator};
 
 // Misc
@@ -344,6 +344,12 @@ function CheckNickname(PlayerController PC)
         if (foulName) ChatRecords[i].Dispatcher.ChangeNamerequest(PC, 0);
         else if (badName) ChatRecords[i].Dispatcher.ChangeNamerequest(PC, 7);
       }
+			else if ((BadnickAction == BNA_Ban) || (BadnickAction == BNA_SessionBan))
+      {
+				Level.Game.AccessControl.BanPlayer(PC, (BadnickAction == BNA_SessionBan));
+        if (foulName) ChatRecords[i].Dispatcher.ChangeNamerequest(PC, 0);
+        else if (badName) ChatRecords[i].Dispatcher.ChangeNamerequest(PC, 7);
+      }
       ChatRecords[i].LastName = Caps(PC.PlayerReplicationInfo.PlayerName);
     }
   }
@@ -585,7 +591,7 @@ static function FillPlayInfo(PlayInfo PI)
   PI.AddSetting("Chat Filter", "KillAction", "Kill action", 10, 9, "Select", "CFA_Nothing;Nothing;CFA_Warn;Warn player;CFA_Kick;Kick player;CFA_Ban;Ban player;CFA_SessionBan;Ban player this session;CFA_Defrag;Remove one point;CFA_Mute;Mute player for this game");
   
   PI.AddSetting("Chat Filter", "bCheckNicknames", "Check nicknames", 10, 10, "check", "");
-  PI.AddSetting("Chat Filter", "BadnickAction", "Bad nick action", 10, 10, "Select", "BNA_Kick;Kick the player;BNA_Request;Request a new nickname");
+  PI.AddSetting("Chat Filter", "BadnickAction", "Bad nick action", 10, 10, "Select", "BNA_Kick;Kick the player;BNA_Request;Request a new nickname;BNA_Ban;Ban the player;BNA_SessionBan;Ban this player for this session only");
   
   PI.AddSetting("Chat Filter", "sWarningNotification", "Warning notification", 10, 11, "Text");
   PI.AddSetting("Chat Filter", "sWarningBroadcast", "Warning broadcast", 10, 12, "Text");
