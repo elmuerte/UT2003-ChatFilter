@@ -4,7 +4,7 @@
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     displays a "bad nick" message
 //              for this to work ChatFilter must be a ServerPackage
-//              this code is "borrowed" from UTSecure
+//              this code is based on UTSecure
 ///////////////////////////////////////////////////////////////////////////////
 
 class BadNickPage extends GUIPage;

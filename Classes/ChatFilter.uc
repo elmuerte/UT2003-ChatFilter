@@ -120,9 +120,7 @@ function WriteLog(Actor Sender, coerce string msg, coerce string tag)
   {
     if (logfile != none) 
     {
-      //logfile.OpenLog(logname);
       logfile.Logf(Level.TimeSeconds$chr(9)$tag$chr(9)$PlayerController(Sender).PlayerReplicationInfo.PlayerName$chr(9)$msg);
-      //logfile.CloseLog();
     }
   }
 }
@@ -170,7 +168,6 @@ event PreBeginPlay()
     logname = LogFilename();
     logfile.OpenLog(logname);
     logfile.Logf("--- Log started on "$Level.Year$"/"$Level.Month$"/"$Level.Day@Level.Hour$":"$Level.Minute$":"$Level.Second);
-    //logfile.CloseLog();
   }
   if (!Level.Game.BroadcastHandler.IsA('ChatFilter'))
   {
