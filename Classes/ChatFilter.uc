@@ -48,7 +48,7 @@ var config string sLogDir;
 var config string sFileFormat;
 var string logname;
 var FileLog logfile;
-// message target filtering
+// message target filtering -- NOT IMPLEMENTED
 var config ChatDirectionSetting ChatDirection;
 var config bool bAdminChatOverride;
 
@@ -300,6 +300,7 @@ function CheckNickname(PlayerController PC)
   }
 }
 
+// check the chat direction
 function bool mayChat(PlayerController Sender, PlayerController Receiver)
 {
   if (ChatDirection == CD_All) return true;
@@ -511,7 +512,7 @@ static function FillPlayInfo(PlayInfo PI)
   PI.AddSetting("Chat Filter", "fMinVote", "Min vote percentage", 10, 15, "Text", "5;0:1");
 
   PI.AddSetting("Chat Filter", "sMuteMessage", "Mute message", 10, 16, "Text");
-  PI.AddSetting("Chat Filter", "bShowMuted", "Show mute", 10, 17, "Text");
+  PI.AddSetting("Chat Filter", "bShowMuted", "Show muted", 10, 17, "Text");
 
   //CD_All;Public;CD_PrivateSpecator;Spectators are private;CD_PrivatePlayer;Specators and Players are private;
 
