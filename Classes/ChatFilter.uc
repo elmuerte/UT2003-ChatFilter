@@ -1,17 +1,18 @@
 ///////////////////////////////////////////////////////////////////////////////
 // filename:    ChatFilter.uc
-// version:     150
+// version:     151
 // author:      Michiel 'El Muerte' Hendriks <elmuerte@drunksnipers.com>
 // purpose:     main filter class
 ///////////////////////////////////////////////////////////////////////////////
 
 class ChatFilter extends BroadcastHandler;
 
-const VERSION = 150;
+const VERSION = 151;
 
 var config bool bEnabled; // used to disable it via the WebAdmin
 
 enum ChatFilterAction {CFA_Nothing, CFA_Kick, CFA_Ban, CFA_SessionBan, CFA_Defrag, CFA_Warn, CFA_Mute};
+enum BNA {BNA_Kick, BNA_Request};
 
 // Misc
 var config bool bFriendlyMessage;
@@ -26,6 +27,8 @@ var config string CencorWord;
 var config int iScoreSwear;
 // Nickname check
 var config bool bCheckNicknames;
+var config BNA BadnickAction;
+var config array<string> UnallowedNicks;
 // Judgement actions
 var config int iKillScore;
 var config ChatFilterAction KillAction;
@@ -60,6 +63,13 @@ struct ChatRecord
   var bool bMuted;
 };
 var array<ChatRecord> ChatRecords;
+
+struct BadNickRecord
+{
+  var PlayerController User;
+  var string BadNick;
+};
+var array<BadNickRecord> BadNickRecords;
 
 // Find a player record and create a new one when needed
 function int findChatRecord(Actor Sender, optional bool bCreate)
@@ -251,11 +261,51 @@ function CheckNickname(PlayerController PC)
       break;
     }
   }
-  if (!nameOk)
+  if (nameOk)
   {
-    judgeLog("Bad nickname"@PC.PlayerReplicationInfo.PlayerName);
-    Dispatcher.Dispatch(PC, 0);
-    Level.Game.AccessControl.KickPlayer(PC); 
+    for (i=0; i<UnallowedNicks.Length; i++)
+    {
+      if (Caps(PC.PlayerReplicationInfo.PlayerName) == Caps(UnallowedNicks[i]))
+      {
+        nameOk = false;
+        break;
+      }
+    }
+  }
+  if (!nameOk)
+  {    
+    if (BadnickAction == BNA_Kick)
+    {    
+      judgeLog("Bad nickname"@PC.PlayerReplicationInfo.PlayerName);
+      Dispatcher.Dispatch(PC, 0);
+      Level.Game.AccessControl.KickPlayer(PC); 
+    }
+    else if (BadnickAction == BNA_Request)
+    {
+      for (i = 0; i < BadNickRecords.Length; i++)
+      {
+        if (BadNickRecords[i].User == PC) 
+        {          
+          if (BadNickRecords[i].BadNick == PC.PlayerReplicationInfo.PlayerName) return; // no new name
+          else break;
+        }
+      }
+      judgeLog("Bad nickname"@PC.PlayerReplicationInfo.PlayerName);
+      BadNickRecords.Length = i+1;
+      BadNickRecords[i].User = PC;
+      BadNickRecords[i].BadNick = PC.PlayerReplicationInfo.PlayerName;
+      Dispatcher.ChangeNamerequest(PC);
+    }
+  }
+  else {
+    for (i = 0; i < BadNickRecords.Length; i++)
+    {
+      if (BadNickRecords[i].User == PC) 
+      {          
+        BadNickRecords.Remove(i, 1); // remove previous bad name
+        return;
+      }
+    }
   }
 }
 
@@ -505,6 +555,7 @@ defaultproperties
   iKillScore=10
   KillAction=CFA_Nothing
   bCheckNicknames=false  
+  BadnickAction=BNA_Kick
   sWarningNotification="ChatFilter: Please clean up your act"
   sWarningBroadcast="%s is chatting abusive, type 'mutate cf judge %i` to judge the player"
   WarningAction=CFA_Kick

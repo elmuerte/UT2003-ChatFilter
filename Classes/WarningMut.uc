@@ -12,7 +12,7 @@ var ChatFilter cf;
 struct JudgeMent
 {
   var array<PlayerController> Jury;
-  var int total;
+  var float total;
 };
 var array<JudgeMent> JudgeMents;
 
@@ -46,8 +46,8 @@ function judgeMentVote(PlayerController Sender, int offset)
       }
       JudgeMents[offset].Jury.Length = i+1;
       JudgeMents[offset].Jury[i] = Sender;
-      JudgeMents[offset].total++;
-      if ((JudgeMents[offset].total/Level.Game.NumPlayers) >= cf.fMinVote)
+      JudgeMents[offset].total += 1;
+      if ((JudgeMents[offset].total/float(Level.Game.NumPlayers)) >= cf.fMinVote)
       {
         cf.ChatRecords[offset].bUserRequest = true;
         cf.judgeWarning(cf.ChatRecords[offset].Sender, offset);
