@@ -321,7 +321,7 @@ event PreBeginPlay()
   log("[~] Loading Chat Filter version"@VERSION);
   log("[~] Michiel 'El Muerte' Hendriks - elmuerte@drunksnipers.com");
   log("[~] The Drunk Snipers - http://www.drunksnipers.com");
-  if (bFriendlyMessage || bCheckNicknames) Dispatcher = spawn(class'ChatFilterMsg.MsgDispatcher');
+  if (bFriendlyMessage || bCheckNicknames) Dispatcher = spawn(class'ChatFilterMsg151.MsgDispatcher');
   if (bLogChat)
   {
     logfile = spawn(class 'FileLog', Level);
@@ -500,6 +500,7 @@ static function FillPlayInfo(PlayInfo PI)
   PI.AddSetting("Chat Filter", "KillAction", "Kill actions", 10, 9, "Select", "CFA_Nothing;Nothing;CFA_Warn;Warn player;CFA_Kick;Kick player;CFA_Ban;Ban player;CFA_SessionBan;Ban player this session;CFA_Defrag;Remove one point;CFA_Mute;Mute player for this game");
   
   PI.AddSetting("Chat Filter", "bCheckNicknames", "Check nicknames", 10, 10, "check", "");
+  PI.AddSetting("Chat Filter", "BadnickAction", "Bad nick action", 10, 10, "Select", "BNA_Kick;Kick the player;BNA_Request;Request a new nickname");
   
   PI.AddSetting("Chat Filter", "sWarningNotification", "Warning notification", 10, 11, "Text");
   PI.AddSetting("Chat Filter", "sWarningBroadcast", "Warning broadcast", 10, 12, "Text");
