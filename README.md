@@ -145,13 +145,13 @@ The maximum score a player may have before actions will be taken
 ### KillAction
 Action to take against the player:
 
--        CFA_Nothing do nothing
--        CFA_Kick kick the player
--        CFA_Ban ban the player
--        CFA_SessionBan ban the player for this game
--        CFA_Defrag remove one point of the players score
--        CFA_Warn the player will be warned
--        CFA_Mute the player will be muted for the rest of the game 
+- CFA_Nothing do nothing
+- CFA_Kick kick the player
+- CFA_Ban ban the player
+- CFA_SessionBan ban the player for this game
+- CFA_Defrag remove one point of the players score
+- CFA_Warn the player will be warned
+- CFA_Mute the player will be muted for the rest of the game 
 
 ### BadWords
 Words that are considderd bad/swearing. By default no words are added
@@ -193,14 +193,14 @@ The directory where to store the log files, this has to end with a slash, and th
 
 ### sFileFormat
 The format for the log filename. You can use the following replacements:
--        %P server Port
--        %Y current Year
--        %M current Month
--        %Y current Day
--        %H current Hour
--        %I current mInute
--        %S current Second
--        %N server Name 
+- %P server Port
+- %Y current Year
+- %M current Month
+- %Y current Day
+- %H current Hour
+- %I current mInute
+- %S current Second
+- %N server Name 
 
 Not all characters are supported in the filename, for example '.', these will be translated to an underscore '_' 
 
